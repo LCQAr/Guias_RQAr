@@ -9,8 +9,8 @@ output/
 **/output/
 **/outputs/
 _static/
-content/
-data/
+**/content/
+**/data/
 **/_static/
 2026-08-27_Scripts_Bruno_RepEspacial/
 Nacional/
