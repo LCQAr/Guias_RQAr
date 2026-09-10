@@ -35,12 +35,12 @@ UFS = [
 class Painel(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Guia RQAr Nacional — Painel de Atualização")
+        self.title("Guia RQAr Estadual — Painel de Atualização")
         self.geometry("640x480")
         self.resizable(True, True)
 
         tk.Label(
-            self, text="Atualização do Guia RQAr Nacional",
+            self, text="Atualização do Guia RQAr Estadual",
             font=("Segoe UI", 14, "bold"),
         ).pack(pady=(16, 4))
 

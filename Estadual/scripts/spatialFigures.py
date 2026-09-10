@@ -472,6 +472,170 @@ from matplotlib.colors import ListedColormap, rgb2hex
 from branca.element import MacroElement, Template
 from pathlib import Path
 
+# def spatial_rede_monitoramento_interative(aqmData, UF, columnRef, columnsTooltip, cmap):
+#     import geopandas as gpd
+#     import pandas as pd
+#     import folium
+#     import geobr
+#     from folium.plugins import MiniMap
+#     from matplotlib.colors import rgb2hex
+#     from branca.element import MacroElement, Template
+
+#     # --- 1. Pré-processamento ---
+#     aqmData = aqmData.dropna(subset=["LATITUDE", "LONGITUDE"])
+
+#     # NOVO: filtra pelo estado escolhido
+#     aqmData = aqmData[aqmData["UF"] == UF].copy()
+
+#     for col in ["LATITUDE", "LONGITUDE"]:
+#         aqmData[col] = pd.to_numeric(aqmData[col].astype(str).str.replace(',', '.'), errors="coerce")
+
+#     aqmData = aqmData.dropna(subset=["LATITUDE", "LONGITUDE"])
+#     aqmData["STATUS"] = aqmData["STATUS"].fillna("Não declarado").replace({"Nao declarado": "Não declarado"})
+#     aqmData["CATEGORIA"] = aqmData["CATEGORIA"].fillna("Não declarado").replace({
+#         "Nao declarado": "Não declarado", "Referencia": "Referência"
+#     })
+
+#     # --- 2. Agrupamento ---
+#     group_cols = [c for c in ["UF","ID_OEMA","NOME","LATITUDE","LONGITUDE","STATUS","CATEGORIA"] if c in aqmData.columns]
+
+#     def _join_unique(x):
+#         vals = sorted({str(v).strip() for v in x.dropna() if str(v).strip()})
+#         return ", ".join(vals)
+
+#     aqmDataGrouped = aqmData.groupby(group_cols, dropna=False).agg(POLUENTE=("POLUENTE", _join_unique)).reset_index()
+#     aqmDataGrouped["N° Poluentes Medidos"] = aqmDataGrouped["POLUENTE"].apply(lambda s: len([p for p in str(s).split(",") if p.strip()]))
+
+#     # --- 3. GeoDataFrame ---
+#     gdf = gpd.GeoDataFrame(
+#         aqmDataGrouped,
+#         geometry=gpd.points_from_xy(aqmDataGrouped["LONGITUDE"], aqmDataGrouped["LATITUDE"]),
+#         crs="EPSG:4326"
+#     )
+
+#     col_match = next((c for c in gdf.columns if c.lower() == columnRef.lower()), None)
+#     if col_match is None:
+#         raise KeyError(f"Coluna '{columnRef}' não encontrada no DataFrame.")
+
+#     # --- 4. Fronteira do estado (sem LayerControl automático) ---
+#     uf_boundary = geobr.read_state(code_state=UF, year=2020)
+
+#     m = folium.Map(tiles="CartoDB positron", attr='&copy; CartoDB')
+
+#     folium.GeoJson(
+#         uf_boundary,
+#         style_function=lambda x: {"color": "black", "weight": 2, "fillOpacity": 0},
+#         control=False,   # <-- impede que isso apareça em qualquer LayerControl
+#     ).add_to(m)
+
+#     # Mapeamento de cores
+#     unique_categories = sorted(gdf[col_match].unique())
+
+#     fixed_colors = {
+#         "Referência": "green",
+#         "Não declarado": "gray",
+#     }
+
+#     colors_hex = [rgb2hex(cmap(i)) for i in range(len(unique_categories))]
+#     category_colors = {
+#         cat: fixed_colors.get(cat, colors_hex[i])
+#         for i, cat in enumerate(unique_categories)
+#     }
+
+#     # --- 5. Camadas com bolinha grande no seletor ---
+#     for category in unique_categories:
+#         color = category_colors[category]
+#         subset = gdf[gdf[col_match] == category]
+
+#         layer_name = f'<span style="color: {color}; font-size: 30px; vertical-align: -2px;">●</span> {category}'
+
+#         group = folium.FeatureGroup(name=layer_name)
+
+#         subset.explore(
+#             m=group,
+#             color=color,
+#             tooltip=columnsTooltip,
+#             marker_kwds={"radius": 8, "fill": True, "weight": 1, "color": "white"},
+#             popup=True,
+#             legend=False
+#         )
+#         group.add_to(m)
+
+#     # --- 5.5. Legenda (mesmo estilo do _new / _states) ---
+#     legend_items = "".join(
+#         f'<div style="display:flex; align-items:center; margin-bottom:4px;">'
+#         f'<span style="background:{color}; width:14px; height:14px; '
+#         f'display:inline-block; margin-right:6px; border-radius:50%; '
+#         f'border:1px solid #999;"></span>{category}</div>'
+#         for category, color in category_colors.items()
+#     )
+
+#     legend_html = f"""
+#     {{% macro html(this, kwargs) %}}
+#     <div style="
+#         position: fixed;
+#         top: 10px;
+#         right: 10px;
+#         z-index: 9999;
+#         background-color: white;
+#         padding: 10px 14px;
+#         border: 2px solid grey;
+#         border-radius: 8px;
+#         box-shadow: 0 0 15px rgba(0,0,0,0.2);
+#         font-size: 13px;
+#         font-family: Arial, sans-serif;
+#     ">
+#         <b>{col_match}</b><br>
+#         {legend_items}
+#     </div>
+#     {{% endmacro %}}
+#     """
+
+#     legend = MacroElement()
+#     legend._template = Template(legend_html)
+#     #m.get_root().add_child(legend)
+
+#     # --- 6. Zoom para a fronteira do estado (NOVO: substitui zoom_start fixo) ---
+#     minx, miny, maxx, maxy = uf_boundary.total_bounds
+#     m.fit_bounds([[miny, minx], [maxy, maxx]])
+
+#     # --- 7. Layer Control ---
+#     folium.LayerControl(position='bottomright', collapsed=False).add_to(m)
+
+#     # MiniMap
+#     MiniMap(position="bottomleft", zoom_level_offset=-5, tile_layer="CartoDB positron").add_to(m)
+
+#     # --- 8. CSS ---
+#     style = Template("""
+#     {% macro header(this, kwargs) %}
+#     <style>
+#       .leaflet-tooltip { min-width: 200px; white-space: normal; font-size: 12px; }
+#       .leaflet-control-layers {
+#         font-family: 'Arial', sans-serif;
+#         font-size: 14px;
+#         font-weight: bold;
+#         line-height: 25px;
+#         background: rgba(255, 255, 255, 0.9);
+#         border-radius: 8px;
+#         padding: 10px;
+#         box-shadow: 0 0 15px rgba(0,0,0,0.2);
+#       }
+#       .leaflet-control-layers-overlays label {
+#         display: flex;
+#         align-items: center;
+#         margin-bottom: 5px;
+#         cursor: pointer;
+#       }
+#     </style>
+#     {% endmacro %}
+#     """)
+
+#     macro = MacroElement()
+#     macro._template = style
+#     m.get_root().add_child(macro)
+
+#     return m
+
 def spatial_rede_monitoramento_interative(aqmData, UF, columnRef, columnsTooltip, cmap):
     import geopandas as gpd
     import pandas as pd
@@ -483,13 +647,10 @@ def spatial_rede_monitoramento_interative(aqmData, UF, columnRef, columnsTooltip
 
     # --- 1. Pré-processamento ---
     aqmData = aqmData.dropna(subset=["LATITUDE", "LONGITUDE"])
-
-    # NOVO: filtra pelo estado escolhido
+    # filtra pelo estado escolhido
     aqmData = aqmData[aqmData["UF"] == UF].copy()
-
     for col in ["LATITUDE", "LONGITUDE"]:
         aqmData[col] = pd.to_numeric(aqmData[col].astype(str).str.replace(',', '.'), errors="coerce")
-
     aqmData = aqmData.dropna(subset=["LATITUDE", "LONGITUDE"])
     aqmData["STATUS"] = aqmData["STATUS"].fillna("Não declarado").replace({"Nao declarado": "Não declarado"})
     aqmData["CATEGORIA"] = aqmData["CATEGORIA"].fillna("Não declarado").replace({
@@ -498,11 +659,9 @@ def spatial_rede_monitoramento_interative(aqmData, UF, columnRef, columnsTooltip
 
     # --- 2. Agrupamento ---
     group_cols = [c for c in ["UF","ID_OEMA","NOME","LATITUDE","LONGITUDE","STATUS","CATEGORIA"] if c in aqmData.columns]
-
     def _join_unique(x):
         vals = sorted({str(v).strip() for v in x.dropna() if str(v).strip()})
         return ", ".join(vals)
-
     aqmDataGrouped = aqmData.groupby(group_cols, dropna=False).agg(POLUENTE=("POLUENTE", _join_unique)).reset_index()
     aqmDataGrouped["N° Poluentes Medidos"] = aqmDataGrouped["POLUENTE"].apply(lambda s: len([p for p in str(s).split(",") if p.strip()]))
 
@@ -512,45 +671,57 @@ def spatial_rede_monitoramento_interative(aqmData, UF, columnRef, columnsTooltip
         geometry=gpd.points_from_xy(aqmDataGrouped["LONGITUDE"], aqmDataGrouped["LATITUDE"]),
         crs="EPSG:4326"
     )
-
     col_match = next((c for c in gdf.columns if c.lower() == columnRef.lower()), None)
     if col_match is None:
         raise KeyError(f"Coluna '{columnRef}' não encontrada no DataFrame.")
 
-    # --- 4. Fronteira do estado (sem LayerControl automático) ---
+    # --- 4. Fronteira do estado ---
     uf_boundary = geobr.read_state(code_state=UF, year=2020)
+    minx, miny, maxx, maxy = uf_boundary.total_bounds
+    center_lat = (miny + maxy) / 2
+    center_lon = (minx + maxx) / 2
 
-    m = folium.Map(tiles="CartoDB positron", attr='&copy; CartoDB')
+    # --- 5. Mapa-base CARTO Voyager com chave de API ---
+    m = folium.Map(
+        location=[center_lat, center_lon],  # view inicial válida
+        zoom_start=6,                        # fallback razoável, será sobrescrito pelo fit_bounds
+        tiles=None
+    )
+
+    pmtiles_layer = MacroElement()
+    pmtiles_layer._template = Template("""
+    {% macro header(this, kwargs) %}
+    {% endmacro %}
+    {% macro script(this, kwargs) %}
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_2ge2_1_675289d2b5268d90fee0fdab", {minZoom:2,maxZoom:20,maxNativeZoom:20,subdomains:"abcd",attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'}).addTo({{ this._parent.get_name() }});
+    {% endmacro %}
+    """)
+    m.add_child(pmtiles_layer)
 
     folium.GeoJson(
         uf_boundary,
         style_function=lambda x: {"color": "black", "weight": 2, "fillOpacity": 0},
-        control=False,   # <-- impede que isso apareça em qualquer LayerControl
+        control=False,   # impede que isso apareça em qualquer LayerControl
     ).add_to(m)
 
     # Mapeamento de cores
     unique_categories = sorted(gdf[col_match].unique())
-
     fixed_colors = {
         "Referência": "green",
         "Não declarado": "gray",
     }
-
     colors_hex = [rgb2hex(cmap(i)) for i in range(len(unique_categories))]
     category_colors = {
         cat: fixed_colors.get(cat, colors_hex[i])
         for i, cat in enumerate(unique_categories)
     }
 
-    # --- 5. Camadas com bolinha grande no seletor ---
+    # --- 6. Camadas com bolinha grande no seletor ---
     for category in unique_categories:
         color = category_colors[category]
         subset = gdf[gdf[col_match] == category]
-
         layer_name = f'<span style="color: {color}; font-size: 30px; vertical-align: -2px;">●</span> {category}'
-
         group = folium.FeatureGroup(name=layer_name)
-
         subset.explore(
             m=group,
             color=color,
@@ -561,7 +732,7 @@ def spatial_rede_monitoramento_interative(aqmData, UF, columnRef, columnsTooltip
         )
         group.add_to(m)
 
-    # --- 5.5. Legenda (mesmo estilo do _new / _states) ---
+    # --- 6.5. Legenda ---
     legend_items = "".join(
         f'<div style="display:flex; align-items:center; margin-bottom:4px;">'
         f'<span style="background:{color}; width:14px; height:14px; '
@@ -569,7 +740,6 @@ def spatial_rede_monitoramento_interative(aqmData, UF, columnRef, columnsTooltip
         f'border:1px solid #999;"></span>{category}</div>'
         for category, color in category_colors.items()
     )
-
     legend_html = f"""
     {{% macro html(this, kwargs) %}}
     <div style="
@@ -590,22 +760,27 @@ def spatial_rede_monitoramento_interative(aqmData, UF, columnRef, columnsTooltip
     </div>
     {{% endmacro %}}
     """
-
     legend = MacroElement()
     legend._template = Template(legend_html)
     #m.get_root().add_child(legend)
 
-    # --- 6. Zoom para a fronteira do estado (NOVO: substitui zoom_start fixo) ---
+    # --- 7. Zoom para a fronteira do estado ---
     minx, miny, maxx, maxy = uf_boundary.total_bounds
     m.fit_bounds([[miny, minx], [maxy, maxx]])
 
-    # --- 7. Layer Control ---
+    # --- 8. Layer Control ---
     folium.LayerControl(position='bottomright', collapsed=False).add_to(m)
 
-    # MiniMap
-    MiniMap(position="bottomleft", zoom_level_offset=-5, tile_layer="CartoDB positron").add_to(m)
+    # MiniMap — usa o mesmo CARTO Voyager (com key) em vez de "CartoDB positron"
+    minimap_tile = folium.TileLayer(
+        tiles="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_2ge2_1_675289d2b5268d90fee0fdab",
+        attr='&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains="abcd",
+        name="MiniMap Voyager",
+    )
+    MiniMap(position="bottomleft", zoom_level_offset=-5, tile_layer=minimap_tile).add_to(m)
 
-    # --- 8. CSS ---
+    # --- 9. CSS ---
     style = Template("""
     {% macro header(this, kwargs) %}
     <style>
@@ -629,7 +804,6 @@ def spatial_rede_monitoramento_interative(aqmData, UF, columnRef, columnsTooltip
     </style>
     {% endmacro %}
     """)
-
     macro = MacroElement()
     macro._template = style
     m.get_root().add_child(macro)

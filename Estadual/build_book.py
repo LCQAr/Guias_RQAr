@@ -64,6 +64,9 @@ PARAMETERS = {
 # NOTA: só arquivos .ipynb entram aqui -- o papermill executa notebooks,
 # não scripts .py comuns. compute_stats.py NÃO entra nesta lista; ele é
 # chamado diretamente como função Python (compute_stats(...)), mais abaixo.
+
+# Selecionar apenas as seções de interesse para serem executadas. 
+# Note que a seção 4 e suas subseções carregam inúmeros datasets, considere o que é necessário para finalizar o relatório.
 NOTEBOOKS = [
     "scripts/seasonality_analisys.ipynb",
     "scripts/trend_analisys.ipynb",
