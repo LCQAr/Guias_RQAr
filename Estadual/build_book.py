@@ -64,28 +64,19 @@ PARAMETERS = {
 # NOTA: só arquivos .ipynb entram aqui -- o papermill executa notebooks,
 # não scripts .py comuns. compute_stats.py NÃO entra nesta lista; ele é
 # chamado diretamente como função Python (compute_stats(...)), mais abaixo.
-
-# Selecionar apenas as seções de interesse para serem executadas. 
-# Note que a seção 4 e suas subseções carregam inúmeros datasets, considere o que é necessário para finalizar o relatório.
 NOTEBOOKS = [
     "scripts/seasonality_analisys.ipynb",
     "scripts/trend_analisys.ipynb",
     "secao_3/secao_03.ipynb",
     "secao_3/secao_3.1.ipynb",
-    "secao_3/secao_3.2.ipynb",
-    "secao_3/secao_3.3.ipynb",
-    "secao_3/secao_3.4.ipynb",
-    "secao_3/secao_3.5.ipynb",
-    "secao_3/secao_3.6.1.ipynb",
-    "secao_3/secao_3.6.2.ipynb",
-    "secao_3/secao_3.6.3.ipynb",
-    "secao_3/secao_3.6.4.ipynb",
-    "secao_4/secao_4.1.1.ipynb",
-    "secao_4/secao_4.1.2.ipynb",
-    "secao_4/secao_4.2.ipynb",
-    "secao_4/secao_4.3.ipynb",
-    "secao_4/secao_4.4.1.ipynb",
-    "secao_4/secao_4.4.2.ipynb",
+    #"secao_3/secao_3.2.ipynb",
+    #"secao_3/secao_3.3.ipynb",
+    #"secao_3/secao_3.4.ipynb",
+    #"secao_3/secao_3.5.ipynb",
+    #"secao_3/secao_3.6.1.ipynb",
+    #"secao_3/secao_3.6.2.ipynb",
+    #"secao_3/secao_3.6.3.ipynb",
+    #"secao_3/secao_3.6.4.ipynb",
 ]
 
 
@@ -106,8 +97,18 @@ def run_notebook(notebook_path: Path, parameters: dict | None = None):
     inside its own folder -- required for notebooks that do bare imports
     like `import flagTables` (a file living alongside the notebook, not
     at the project root)."""
+    python_exe = sys.executable
+    # pythonw.exe (Windows, no console window) breaks papermill/tqdm, which
+    # need a real console to write progress output to. If build_book.py
+    # itself happens to be running under pythonw.exe (e.g. launched via
+    # painel.py), swap to the sibling python.exe for this subprocess call.
+    if python_exe.lower().endswith("pythonw.exe"):
+        candidato = python_exe[: -len("pythonw.exe")] + "python.exe"
+        if Path(candidato).exists():
+            python_exe = candidato
+
     cmd = [
-        sys.executable, "-m", "papermill",
+        python_exe, "-m", "papermill",
         str(notebook_path), str(notebook_path),
         "--kernel", "python3",
         "--cwd", str(notebook_path.parent),
