@@ -136,3 +136,4 @@ websocket-client==1.9.0
 widgetsnbextension==4.0.15
 xyzservices==2026.3.0
 zope.interface==8.5
+streamlit==1.38.0
