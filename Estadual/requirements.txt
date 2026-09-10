@@ -36,7 +36,6 @@ bs4==0.0.2
 Cartopy==0.25.0
 case-conversion==3.0.2
 certifi==2025.6.15
-cffi==1.17.1
 cftime==1.6.4.post1
 chardet==5.2.0
 charset-normalizer==3.4.2
