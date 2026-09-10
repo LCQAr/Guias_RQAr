@@ -80,6 +80,7 @@ numpy
 packaging
 pandas
 pandocfilters==1.5.1
+papermill
 parso==0.8.7
 pexpect==4.9.0
 pillow

@@ -112,13 +112,13 @@ if "ultimo_gerado" not in st.session_state:
     st.session_state.ultimo_gerado = {}
 
 if LOGO_PATH and (build_book.HERE / LOGO_PATH).exists():
-    st.sidebar.image(str(build_book.HERE / LOGO_PATH), use_container_width=True)
+    st.sidebar.image(str(build_book.HERE / LOGO_PATH), width=200)
 
 st.sidebar.title("Filtros")
 uf_selecionada = st.sidebar.selectbox("Estado (UF)", UFS)
 secao_selecionada = st.sidebar.selectbox("Seção", build_book.NOTEBOOKS)
 altura_frame = st.sidebar.slider("Altura do gráfico/tabela", 400, 1600, 900, step=100)
-rodar = st.sidebar.button("▶ Gerar / Atualizar", use_container_width=True)
+rodar = st.sidebar.button("▶️ Gerar / Atualizar")
 
 st.title(TITULO_OFICIAL)
 st.caption(f"Estado selecionado: {uf_selecionada}")
@@ -262,4 +262,4 @@ with tab_metricas:
         tabela_metricas = pd.DataFrame(
             [{"Métrica": k, "Descrição": descricao_metrica(k), "Valor": v} for k, v in metricas.items()]
         )
-        st.dataframe(tabela_metricas, use_container_width=True, hide_index=True)
+        st.dataframe(tabela_metricas, hide_index=True)
