@@ -121,7 +121,7 @@ def run_notebook(notebook_path: Path, parameters: dict | None = None):
 def marker_name_for(notebook_path: Path, html_file: Path) -> str:
     # secao_3/secao_3.1.ipynb + outputs/tabela6.html -> SECAO_3_1_TABELA6
     section_tag = notebook_path.stem.upper().replace(".", "_").replace("-", "_")
-    item_tag = html_file.stem.upper()
+    item_tag = html_file.stem.upper().replace(".", "").replace("-", "")
     return f"{section_tag}_{item_tag}"
 
 
