@@ -36,7 +36,7 @@ echo "Instalando o navegador usado para gerar as imagens das tabelas/mapas..."
 ./.guia_venv/bin/python3 -m playwright install chromium
 
 echo ""
-echo "=============================================="
-echo " Instalação concluída! Use 'Abrir Painel.command'"
-echo "=============================================="
+echo "================================================="
+echo " Instalação concluída! Siga para o próximo passo"
+echo "================================================="
 read -p "Pressione Enter para fechar..."
