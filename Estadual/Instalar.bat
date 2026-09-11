@@ -37,7 +37,7 @@ echo Instalando o navegador usado para gerar as imagens das tabelas/mapas...
 ".guia_venv\Scripts\python.exe" -m playwright install chromium
 
 echo.
-echo ==============================================
-echo  Instalacao concluida! Use "Abrir Painel.bat"
-echo ==============================================
+echo ==================================================
+echo  Instalacao concluida! Siga para o próximo passo
+echo ==================================================
 pause
