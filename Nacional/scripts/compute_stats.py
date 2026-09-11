@@ -29,12 +29,24 @@ def _monitored_in(df: pd.DataFrame, year: int) -> pd.Series:
     )
 
 
-def _stations_in_year(df: pd.DataFrame, year: int) -> pd.DataFrame:
-    """Filters rows monitored in `year` FIRST, then dedupes by station
-    (ID_OEMA) -- deduping before filtering would arbitrarily keep just one
-    of a station's several pollutant/period rows, possibly discarding the
-    very row that matched the requested year."""
-    return df[_monitored_in(df, year)].drop_duplicates(subset=["ID_OEMA"])
+def _normalize_uf(uf: str | None) -> str | None:
+    """"BRASIL" (ou None/""/"BR"/"TODOS") => sem filtro, Brasil inteiro
+    (comportamento atual). Uma sigla real (ex: "SC") => filtra por estado."""
+    if uf in (None, "", "BRASIL", "BR", "TODOS"):
+        return None
+    return uf
+
+
+def _stations_in_year(df: pd.DataFrame, year: int, uf: str | None = None) -> pd.DataFrame:
+    """Filters rows monitored in `year` (e, se `uf` for passado, também por
+    estado) FIRST, then dedupes by station (ID_OEMA) -- deduping before
+    filtering would arbitrarily keep just one of a station's several
+    pollutant/period rows, possibly discarding the very row that matched
+    the requested year."""
+    mask = _monitored_in(df, year)
+    if uf is not None:
+        mask = mask & (df["UF"] == uf)
+    return df[mask].drop_duplicates(subset=["ID_OEMA"])
 
 
 def _is_nao_informado(categoria: pd.Series) -> pd.Series:
@@ -43,15 +55,21 @@ def _is_nao_informado(categoria: pd.Series) -> pd.Series:
     return categoria.isna() | (categoria == "Nao declarado")
 
 
-def stats_contagem_geral(current_year: int, previous_year: int) -> dict:
+def stats_contagem_geral(current_year: int, previous_year: int, uf: str | None = None) -> dict:
     df = _load_stations()
+    uf = _normalize_uf(uf)
 
     """Numbers about total station counts and method breakdown."""
-    if not _monitored_in(df, current_year).any() or not _monitored_in(df, previous_year).any():
+    cur_mask = _monitored_in(df, current_year)
+    prev_mask = _monitored_in(df, previous_year)
+    if uf is not None:
+        cur_mask = cur_mask & (df["UF"] == uf)
+        prev_mask = prev_mask & (df["UF"] == uf)
+    if not cur_mask.any() or not prev_mask.any():
         raise ValueError(f"Data for year {current_year} or {previous_year} not found in the dataset.")
 
-    cur = _stations_in_year(df, current_year)
-    prev = _stations_in_year(df, previous_year)
+    cur = _stations_in_year(df, current_year, uf)
+    prev = _stations_in_year(df, previous_year, uf)
 
     n_total_cur = len(cur)
     n_total_prev = len(prev)
@@ -76,10 +94,11 @@ def stats_contagem_geral(current_year: int, previous_year: int) -> dict:
     }
 
 
-def stats_status_funcionamento(current_year: int) -> dict:
+def stats_status_funcionamento(current_year: int, uf: str | None = None) -> dict:
     df = _load_stations()
+    uf = _normalize_uf(uf)
     """Numbers about active/inactive station status, broken down by method."""
-    cur = _stations_in_year(df, current_year)
+    cur = _stations_in_year(df, current_year, uf)
     ref = cur[cur["CATEGORIA"] == "Referencia"]
     ind = cur[cur["CATEGORIA"] == "Indicativa"]
     nc = cur[_is_nao_informado(cur["CATEGORIA"])]
@@ -102,13 +121,19 @@ def stats_status_funcionamento(current_year: int) -> dict:
     }
 
 
-def compute_stats() -> dict:
-    """Merges every topic's numbers into one dict for fill_inline_stats()."""
+def compute_stats(uf: str | None = None) -> dict:
+    """Merges every topic's numbers into one dict for fill_inline_stats().
+
+    uf: sigla do estado (ex: "SC"), ou "BRASIL"/None para o país inteiro
+    (comportamento padrão, sem filtro)."""
+    uf = _normalize_uf(uf)
     current_year, previous_year = 2024, 2023
 
     stats = {"current_year": current_year, "previous_year": previous_year}
-    stats.update(stats_contagem_geral(current_year, previous_year))
-    stats.update(stats_status_funcionamento(current_year))
+    if uf is not None:
+        stats["UF"] = uf
+    stats.update(stats_contagem_geral(current_year, previous_year, uf))
+    stats.update(stats_status_funcionamento(current_year, uf))
     # Add more stats_xxx() calls here as you add more sections with inline numbers.
 
     return stats
@@ -117,6 +142,8 @@ def compute_stats() -> dict:
 if __name__ == "__main__":
     # Quick sanity check: run this file directly to print all computed
     # numbers before wiring it into the full book build, so you can catch
-    # bad data or logic errors early.
-    for key, value in compute_stats().items():
+    # bad data or logic errors early. Ex: python compute_stats.py SP
+    import sys
+    uf_teste = sys.argv[1] if len(sys.argv) > 1 else None
+    for key, value in compute_stats(uf_teste).items():
         print(f"{key}: {value}")

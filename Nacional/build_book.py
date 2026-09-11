@@ -27,9 +27,9 @@ One-time setup (technical person, once per machine):
     playwright install chromium
 """
 
+import os
 import subprocess
 import sys
-import pandas as pd
 import psutil
 from pathlib import Path
 
@@ -48,27 +48,38 @@ CONTENT_DIR = HERE / "content"
 OUTPUT_DOCX = HERE / "output" / "book_filled.docx"
 OUTPUT_PDF = HERE / "output" / "book_filled.pdf"
 
+# --------------------------------------------------------------------------
+# ÚNICO LUGAR a editar para mudar valores usados por vários notebooks
+# (ex: qual estado processar). Cada notebook só recebe um valor daqui se
+# tiver uma célula marcada com a tag "parameters".
+# --------------------------------------------------------------------------
+PARAMETERS = {
+    # "BRASIL" = sem filtro, país inteiro (padrão do livro). A dashboard pode
+    # sobrescrever isto por seleção do usuário (variável de ambiente GUIA_UF).
+    "UF": os.environ.get("GUIA_UF", "BRASIL"),
+}
+
 # Each notebook, and the marker prefix its outputs should map to.
 # outputs/<name>.html inside that notebook's folder becomes {{<MARKER_PREFIX>_<NAME>}}
 # Descomentar notebooks que você não quer rodar (e.g. seções incompletas).
 NOTEBOOKS = [
     "secao_1/secao_1.2.ipynb",
     "secao_3/secao_03.ipynb",
-    "secao_3/secao_3.1.ipynb",
-    "secao_3/secao_3.2.ipynb",
-    "secao_3/secao_3.3.ipynb",
-    "secao_3/secao_3.4.ipynb",
-    "secao_3/secao_3.5.ipynb",
-    "secao_3/secao_3.6.1.ipynb",
-    "secao_3/secao_3.6.2.ipynb",
-    "secao_3/secao_3.6.3.ipynb",
-    "secao_3/secao_3.6.4.ipynb",
-    "secao_4/secao_4.1.1.ipynb",
-    "secao_4/secao_4.1.2.ipynb",
-    "secao_4/secao_4.2.ipynb",
-    "secao_4/secao_4.3.ipynb",
-    "secao_4/secao_4.4.1.ipynb",
-    "secao_4/secao_4.4.2.ipynb",
+    # "secao_3/secao_3.1.ipynb",
+    # "secao_3/secao_3.2.ipynb",
+    # "secao_3/secao_3.3.ipynb",
+    # "secao_3/secao_3.4.ipynb",
+    # "secao_3/secao_3.5.ipynb",
+    # "secao_3/secao_3.6.1.ipynb",
+    # "secao_3/secao_3.6.2.ipynb",
+    # "secao_3/secao_3.6.3.ipynb",
+    # "secao_3/secao_3.6.4.ipynb",
+    #"secao_4/secao_4.1.1.ipynb",
+    #"secao_4/secao_4.1.2.ipynb",
+    #"secao_4/secao_4.2.ipynb",
+    #"secao_4/secao_4.3.ipynb",
+    #"secao_4/secao_4.4.1.ipynb",
+    #"secao_4/secao_4.4.2.ipynb",
 ]
 
 
@@ -95,13 +106,30 @@ def check_memory(step_label: str, threshold_percent: float = MEMORY_WARN_PERCENT
             sys.exit(1)
 
 
-def run_notebook(notebook_path: Path):
-    """Executes a notebook in place, headlessly, using its real code."""
-    subprocess.run(
-        ["jupyter", "nbconvert", "--to", "notebook", "--execute",
-         "--inplace", str(notebook_path)],
-        check=True,
-    )
+def run_notebook(notebook_path: Path, parameters: dict | None = None):
+    """Executes a notebook in place, headlessly, using its real code.
+
+    Runs papermill as a SEPARATE OS PROCESS (via its command-line interface),
+    not as an in-process Python API call -- see Estadual/build_book.py para o
+    raciocínio completo (isolamento de memória/kernel).
+
+    --cwd roda cada notebook a partir da sua própria pasta -- necessário para
+    notebooks que fazem import direto de arquivos vizinhos (ex: flagTables.py)."""
+    python_exe = sys.executable
+    if python_exe.lower().endswith("pythonw.exe"):
+        candidato = python_exe[: -len("pythonw.exe")] + "python.exe"
+        if Path(candidato).exists():
+            python_exe = candidato
+
+    cmd = [
+        python_exe, "-m", "papermill",
+        str(notebook_path), str(notebook_path),
+        "--kernel", "python3",
+        "--cwd", str(notebook_path.parent),
+    ]
+    for key, value in (parameters or {}).items():
+        cmd += ["-p", key, str(value)]
+    subprocess.run(cmd, check=True)
 
 
 def marker_name_for(notebook_path: Path, html_file: Path) -> str:
@@ -113,10 +141,18 @@ def marker_name_for(notebook_path: Path, html_file: Path) -> str:
 
 def process_notebook(notebook_path: Path):
     notebook_path = HERE / notebook_path
-    print(f"Running {notebook_path.name} ...")
-    run_notebook(notebook_path)
-
     outputs_dir = notebook_path.parent / "outputs"
+
+    # outputs/ é compartilhada por TODOS os notebooks da mesma pasta de
+    # seção. Limpar antes de rodar evita pegar arquivo velho de outro
+    # notebook ou de uma execução anterior (para outro estado) por engano.
+    if outputs_dir.exists():
+        for old_file in outputs_dir.glob("*.html"):
+            old_file.unlink()
+
+    print(f"Running {notebook_path.name} ...")
+    run_notebook(notebook_path, parameters=PARAMETERS)
+
     if not outputs_dir.exists():
         print(f"  (no outputs/ folder found for {notebook_path.name}, skipping)")
         return
@@ -161,7 +197,7 @@ if __name__ == "__main__":
 
     print("\nComputing inline stats...")
     doc = Document(str(MASTER))
-    filled, missing = fill_inline_stats(doc, compute_stats())
+    filled, missing = fill_inline_stats(doc, compute_stats(PARAMETERS["UF"]))
     print(f"  Filled {len(filled)} inline number(s): {sorted(filled)}")
     if missing:
         print(f"  WARNING: no data found for {sorted(missing)} -- these {{...}} were left as-is in the text")

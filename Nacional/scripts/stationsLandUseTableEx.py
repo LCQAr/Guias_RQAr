@@ -17,12 +17,18 @@ Como o código é compartilhado via Git, este diretório varia entre usuários.
 Certifique-se de que o caminho exista e que você tenha permissão de escrita. '''
 
 def land_use_table_interactive(
+    uf: str | None = None,
     csv_path: str = "https://arquivos.lcqar.ufsc.br/rqar-national-guide-files/data/outputs/uso_solo_varbuf.csv",
     html_path: Path = "tabela_uso_solo.html",
     img_path: str = "https://arquivos.lcqar.ufsc.br/rqar-national-guide-files/_static/representatividade/bandeiras/",
     save_html: bool = True,
     open_in_notebook: bool = True,
 ):
+    # uf="BRASIL" (ou None/""/"BR"/"TODOS") => sem filtro, Brasil inteiro
+    # (comportamento atual). Uma sigla real => filtra por estado, igual ao Estadual.
+    if uf in (None, "", "BRASIL", "BR", "TODOS"):
+        uf = None
+
     # Caminhos principais
     #rootPath = Path(os.path.dirname(os.getcwd()))
     #csv_path = rootPath / "data" / "outputs" / csv_name
@@ -36,6 +42,8 @@ def land_use_table_interactive(
     # if not csv_path.exists():
     #     raise FileNotFoundError(f"Arquivo não encontrado: {csv_path}")
     df = pd.read_csv(csv_path)
+    if uf is not None:
+        df = df[df["UF"] == uf]
 
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # === Normalizar e limpar poluentes indesejados ===

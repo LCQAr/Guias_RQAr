@@ -10,11 +10,16 @@ import pandas as pd
 from pathlib import Path
 
 def stations_trend_table_interactive(
+    uf: str | None = None,
     csv_name: str = "stations_trend.csv",
     save_html: bool = True,
     html_name: str = "tabela_tendencias.html",
     open_in_notebook: bool = True,
 ):
+    # uf="BRASIL" (ou None/""/"BR"/"TODOS") => sem filtro, Brasil inteiro
+    # (comportamento atual). Uma sigla real => filtra por estado, igual ao Estadual.
+    if uf in (None, "", "BRASIL", "BR", "TODOS"):
+        uf = None
 
     # ===== Caminhos =====
     rootPath = Path(__file__).resolve().parent.parent
@@ -29,6 +34,8 @@ def stations_trend_table_interactive(
     if not csv_path.exists():
         raise FileNotFoundError(f"❌ Arquivo não encontrado: {csv_path}")
     df = pd.read_csv(csv_path)
+    if uf is not None:
+        df = df[df["UF"] == uf]
 
     # ===== Colunas obrigatórias =====
     colunas_base = ["UF", "ID_OEMA"]

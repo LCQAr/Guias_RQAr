@@ -316,7 +316,7 @@ def table_stylizer(style_sortBy='REGIAO'):
     return styled
 
 
-def table01(aqmData, path_bandeiras):
+def table01(aqmData, path_bandeiras, uf: str | None = None):
     """
     Generate an HTML-styled table summarizing air-quality monitoring sources by
     Brazilian states (UF).
@@ -361,17 +361,25 @@ def table01(aqmData, path_bandeiras):
     # Renders the HTML table within a Jupyter notebook.
     """
     
+    # uf="BRASIL" (ou None/""/"BR"/"TODOS") => sem filtro, Brasil inteiro
+    # (comportamento atual). Uma sigla real => filtra por estado, igual ao Estadual.
+    if uf in (None, "", "BRASIL", "BR", "TODOS"):
+        uf = None
+
     # Caminho para a pasta de dados
     #rootPath = os.path.dirname(os.getcwd())
-    
+
     # Lendo o csv
     # aqmData = pd.read_csv(rootPath+'/data/Monitoramento_QAr_BR.csv')
     # Selecionando apenas Estado e Fonte e removendo redundâncias
+    if uf is not None:
+        aqmData = aqmData[aqmData["UF"] == uf]
+
     aqmData['FONTE'] = aqmData['FONTE'].replace(np.nan, 'Coleta interna')
     aqmData = aqmData.replace(columns_names)
     aqmData = aqmData.drop_duplicates(subset=['UF', 'FONTE'])
     #aqmData[np.isnan(aqmData['FONTE'])] = 'Coleta interna'
-    
+
     # Agrupamento por estado quando tivermos mais de uma fonte de informação
     aqmData = aqmData.groupby('UF').agg({
         'FONTE': lambda x: ', '.join(x),
@@ -379,14 +387,15 @@ def table01(aqmData, path_bandeiras):
 
     # Criando coluna 'Realiza monitoramento?'
     aqmData['Realiza monitoramento?'] = 'Sim'
-    
+
     df_index,uf_to_region,uf_order = tableReorder(regioes)
-    
+
     # DataFrame com todos os estados e ordens
     df_index = pd.DataFrame(uf_order.items(), columns=['UF', 'ORDEM'])
 
-    # Atualizando o df com todos os estados
-    aqmData = df_index.merge(aqmData, left_on='UF', right_on='UF',how='left')
+    # Atualizando o df com todos os estados (Brasil inteiro: left join, mantém
+    # todos os estados; um estado específico: inner join, mantém só ele -- igual ao Estadual)
+    aqmData = df_index.merge(aqmData, left_on='UF', right_on='UF', how=('inner' if uf is not None else 'left'))
     aqmData = aqmData[aqmData["UF"] != "BR"]
     # Remove NaN
     aqmData['Realiza monitoramento?'][aqmData['Realiza monitoramento?'].isna()] = 'Não'
@@ -441,32 +450,50 @@ def table01(aqmData, path_bandeiras):
     return html_table
 
 
-def table05(aqmData, path_bandeiras):
+def table05(aqmData, path_bandeiras, uf: str | None = None):
+
+    # uf="BRASIL" (ou None/""/"BR"/"TODOS") => sem filtro, Brasil inteiro
+    # (comportamento atual). Uma sigla real => filtra por estado, igual ao Estadual.
+    if uf in (None, "", "BRASIL", "BR", "TODOS"):
+        uf = None
 
     # Caminho para a pasta de dados
     #rootPath = os.path.dirname(os.getcwd())
-    
+
     # Lendo o csv
     #aqmData = pd.read_csv(rootPath+'/data/Monitoramento_QAr_BR.csv')
     #print(aqmData.columns)
     # Selecionando apenas estações ativas
     #aqmData = aqmData[aqmData['STATUS']=='Ativa']
-    
-    aqmData['ID_OEMA'] = aqmData['ID_OEMA'].str.replace(' ', '') 
-    #aqmData['CATEGORIA'] = aqmData['CATEGORIA'].str.replace(' ', '') 
-    #aqmData['CATEGORIA'] = aqmData['CATEGORIA'].str.replace(' ', '') 
-    
+    if uf is not None:
+        aqmData = aqmData[aqmData["UF"] == uf]
+
+    aqmData['ID_OEMA'] = aqmData['ID_OEMA'].str.replace(' ', '')
+    #aqmData['CATEGORIA'] = aqmData['CATEGORIA'].str.replace(' ', '')
+    #aqmData['CATEGORIA'] = aqmData['CATEGORIA'].str.replace(' ', '')
+
     # Selecionando apenas Estado e Fonte e removendo redundâncias
     aqmData = aqmData.drop_duplicates(subset=['ID_OEMA'])
     #print(aqmData.head())
-    
-    
+
+
     # Selecionando apenas Estado e Fonte e removendo redundâncias
     aqmData = aqmData.groupby('UF')['CATEGORIA'].value_counts().unstack(fill_value=0)
+
+    # Garantir que todas as categorias esperadas existam, mesmo quando um
+    # estado filtrado não tiver nenhuma estação numa delas.
+    for categoria in ['Indicativa', 'Referencia', 'Nao declarado']:
+        if categoria not in aqmData.columns:
+            aqmData[categoria] = 0
+
     aqmData.loc['BR']= aqmData.sum()
-    
-   
+
+
     df_index,uf_to_region,uf_order = tableReorder(regioes)
+
+    if uf is not None:
+        # Mantém só o estado selecionado (igual ao Estadual)
+        df_index = df_index[df_index['UF'].isin([uf])]
 
     # Atualizando o df com todos os estados
     aqmData = df_index.merge(aqmData, left_on='UF', right_on='UF',how='left')
@@ -738,7 +765,12 @@ def table06(aqmData):
     display(HTML(html_table))
     return html_table
 
-def table06MMA(aqmData, path_bandeiras):
+def table06MMA(aqmData, path_bandeiras, uf: str | None = None):
+    # uf="BRASIL" (ou None/""/"BR"/"TODOS") => sem filtro, Brasil inteiro
+    # (comportamento atual). Uma sigla real => filtra por estado, igual ao Estadual.
+    if uf in (None, "", "BRASIL", "BR", "TODOS"):
+        uf = None
+
     # 1. PREPARAÇÃO DOS DADOS
     #rootPath = os.path.dirname(os.getcwd())
     #aqmData = pd.read_csv('https://arquivos.lcqar.ufsc.br/data/databases/stations/Monitoramento_QAr_BR.csv')
@@ -813,14 +845,17 @@ def table06MMA(aqmData, path_bandeiras):
 
     df_index['REGIAO'] = df_index['UF'].map(uf_to_region)
     df_index['ORDEM'] = df_index['UF'].map(uf_order)
+    if uf is not None:
+        # Mantém só o estado selecionado (igual ao Estadual)
+        df_index = df_index[df_index['UF'] == uf]
     df_index = df_index.sort_values('ORDEM')
 
     rows = []
-    
+
     for region_name, region_data in df_index.groupby('REGIAO', sort=False):
         # --- Cabeçalho da Região ---
         header_row = {col: '' for col in flat_columns}
-        header_row['UF'] = f"<b>{region_name}</b>" 
+        header_row['UF'] = f"<b>{region_name}</b>"
         rows.append(header_row)
 
         # --- Linhas dos Estados ---
@@ -1210,10 +1245,15 @@ def table07(mapping_df, aqmData):
     return html_table
 
 
-def table07MMA(aqmData, path_bandeiras, mapping_df):
+def table07MMA(aqmData, path_bandeiras, mapping_df, uf: str | None = None):
+    # uf="BRASIL" (ou None/""/"BR"/"TODOS") => sem filtro, Brasil inteiro
+    # (comportamento atual). Uma sigla real => filtra por estado, igual ao Estadual.
+    if uf in (None, "", "BRASIL", "BR", "TODOS"):
+        uf = None
+
     # Caminho para a pasta de dados
     # rootPath = os.path.dirname(os.getcwd())
-    
+
     # # Lendo o csv
     # aqmData = pd.read_csv(rootPath+'/data/Monitoramento_QAr_BR.csv')
 
@@ -1224,14 +1264,16 @@ def table07MMA(aqmData, path_bandeiras, mapping_df):
         aqmData = aqmData[aqmData['STATUS'].str.strip() == 'Ativa']
     # -----------------------------
 
-    aqmData['ID_OEMA'] = aqmData['ID_OEMA'].str.replace(' ', '') 
-    
+    aqmData['ID_OEMA'] = aqmData['ID_OEMA'].str.replace(' ', '')
+    if uf is not None:
+        aqmData = aqmData[aqmData["UF"] == uf].copy()
+
     # Selecionando apenas Estado e Fonte e removendo redundâncias
-    aqmData['POLUENTE'] = aqmData['POLUENTE'].str.upper() 
-    
+    aqmData['POLUENTE'] = aqmData['POLUENTE'].str.upper()
+
     # O filtro de STATUS deve ter ocorrido antes desta linha:
     aqmData = aqmData.groupby('UF')['POLUENTE'].value_counts().unstack(fill_value=0)
-    
+
     numeric_cols = aqmData.select_dtypes(include=['number']).columns
     aqmData[numeric_cols] = aqmData[numeric_cols].astype('Int64')
     aqmData.loc['BR']= aqmData.sum()
@@ -1240,9 +1282,12 @@ def table07MMA(aqmData, path_bandeiras, mapping_df):
     # Create two mappings:
     # Region name per UF
     # Certifique-se que 'regioes' e 'tableReorder' estão definidos no escopo global ou importados
-    uf_to_region = {uf: Regiao for Regiao, ufs in regioes.items() for uf in ufs}
-    
+    uf_to_region = {uf_: Regiao for Regiao, ufs in regioes.items() for uf_ in ufs}
+
     df_index, uf_to_region, uf_order = tableReorder(regioes)
+    if uf is not None:
+        # Mantém só o estado selecionado (igual ao Estadual)
+        df_index = df_index[df_index['UF'].isin([uf])]
 
     # Atualizando o df com todos os estados
     aqmData = df_index.merge(aqmData, left_on='UF', right_on='UF', how='left')
@@ -1640,7 +1685,7 @@ def tabela_iterativa(aqmData, searchPaneColumns):
     return html_table
 
 
-def flagTable(aqmData, path_bandeiras, columnsSelector):
+def flagTable(aqmData, path_bandeiras, columnsSelector, uf: str | None = None):
 
     """
     Generate a formatted DataFrame of air quality monitoring stations with flags and pollutant counts.
@@ -1677,7 +1722,11 @@ def flagTable(aqmData, path_bandeiras, columnsSelector):
     
     # # Lendo o csv
     # aqmData = pd.read_csv(rootPath+'/data/Monitoramento_QAr_BR.csv')
+    if uf in (None, "", "BRASIL", "BR", "TODOS"):
+        uf = None
     aqmData['ID_OEMA'] = aqmData['ID_OEMA'].str.replace(' ', '') 
+    if uf is not None:
+        aqmData = aqmData[aqmData["UF"] == uf]
     aqmData['POLUENTE'] = aqmData['POLUENTE'].str.upper()
     #aqmData['CATEGORIA'] = aqmData['CATEGORIA'].str.replace(' ', '') 
     aqmData.loc[aqmData['CATEGORIA']=='N','CATEGORIA'] = 'Não identificada' 
@@ -1715,7 +1764,7 @@ def flagTable(aqmData, path_bandeiras, columnsSelector):
     aqmDataGrouped = aqmDataGrouped.replace('Referencia','Referência')
     return aqmDataGrouped
 
-def flagTable2(aqmData,path_bandeiras,columnsSelector):
+def flagTable2(aqmData,path_bandeiras,columnsSelector, uf: str | None = None):
 
     """
     Generate a formatted DataFrame of air quality monitoring stations with flags and pollutant counts.
@@ -1752,7 +1801,11 @@ def flagTable2(aqmData,path_bandeiras,columnsSelector):
     
     # # Lendo o csv
     # aqmData = pd.read_csv(rootPath+'/data/Monitoramento_QAr_BR.csv')
+    if uf in (None, "", "BRASIL", "BR", "TODOS"):
+        uf = None
     aqmData['ID_OEMA'] = aqmData['ID_OEMA'].str.replace(' ', '') 
+    if uf is not None:
+        aqmData = aqmData[aqmData["UF"] == uf]
     aqmData['POLUENTE'] = aqmData['POLUENTE'].str.upper()
     #aqmData['CATEGORIA'] = aqmData['CATEGORIA'].str.replace(' ', '') 
     aqmData.loc[aqmData['CATEGORIA']=='N','CATEGORIA'] = 'Não identificada' 

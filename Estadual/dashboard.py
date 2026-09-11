@@ -112,7 +112,7 @@ if "ultimo_gerado" not in st.session_state:
     st.session_state.ultimo_gerado = {}
 
 if LOGO_PATH and (build_book.HERE / LOGO_PATH).exists():
-    st.sidebar.image(str(build_book.HERE / LOGO_PATH), width=200)
+    st.sidebar.image(str(build_book.HERE / LOGO_PATH), width=300)
 
 st.sidebar.title("Filtros")
 uf_selecionada = st.sidebar.selectbox("Estado (UF)", UFS)

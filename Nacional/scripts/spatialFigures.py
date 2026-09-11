@@ -156,7 +156,7 @@ def explore_with_bounds(
 
 
 
-def spatial_rede_monitoramento_new(aqmData, columnRef, columnsToltip, cmap):
+def spatial_rede_monitoramento_new(aqmData, uf, columnRef, columnsToltip, cmap):
     import geopandas as gpd
     import pandas as pd
     from folium.plugins import MiniMap
@@ -164,20 +164,28 @@ def spatial_rede_monitoramento_new(aqmData, columnRef, columnsToltip, cmap):
     from branca.element import MacroElement, Template
     from pathlib import Path
 
+    # uf="BRASIL" (ou None/""/"BR"/"TODOS") => sem filtro, mapa do país inteiro
+    # (comportamento atual). Uma sigla real => filtra e desenha a fronteira do
+    # estado via geobr, igual ao Estadual.
+    if uf in (None, "", "BRASIL", "BR", "TODOS"):
+        uf = None
+
     # -------------------------------------------------------------------------
     # Leitura
     # -------------------------------------------------------------------------
     # rootPath = Path(__file__).resolve().parents[1]
-    
+
     # # Use the / operator to join the Path object with the strings
     # aqm_path = rootPath / "data" / "Monitoramento_QAr_BR.csv"
-    
+
     # # Now read the CSV using that path
     # aqmData = pd.read_csv(aqm_path)
     # -------------------------------------------------------------------------
     # Pré-processamento
     # -------------------------------------------------------------------------
     aqmData = aqmData.dropna(subset=["LATITUDE", "LONGITUDE"])
+    if uf is not None:
+        aqmData = aqmData[aqmData["UF"] == uf]
 #    aqmData["LATITUDE"]  = pd.to_numeric(aqmData["LATITUDE"],  errors="coerce")
 #    aqmData["LONGITUDE"] = pd.to_numeric(aqmData["LONGITUDE"], errors="coerce")
 # Garanta que são números ANTES de criar o GeoDataFrame
@@ -266,7 +274,7 @@ def spatial_rede_monitoramento_new(aqmData, columnRef, columnsToltip, cmap):
     # -------------------------------------------------------------------------
     # Mapa
     # -------------------------------------------------------------------------
-    m = gdf.explore(
+    explore_kwds = dict(
         column=col_match,
         tooltip=tooltip_short,
         tooltip_kwds={"sticky": True, "direction": "right"},
@@ -277,9 +285,20 @@ def spatial_rede_monitoramento_new(aqmData, columnRef, columnsToltip, cmap):
         legend=True,
 #        legend_kwds=dict(colorbar=True, fmt="{:.0f}", caption=col_match),
         legend_kwds=dict(caption=col_match),
-
-        zoom_start=4, min_zoom=3, location=[-15.8, -47.9]
     )
+
+    if uf is not None:
+        # Fronteira do estado (igual ao Estadual): desenha o contorno primeiro
+        # e plota os pontos por cima, com zoom ajustado à fronteira.
+        import geobr
+        uf_boundary = geobr.read_state(code_state=uf, year=2020)
+        m = uf_boundary.explore(
+            color="#00000000",
+            style_kwds={"color": "black", "weight": 2, "fillOpacity": 0},
+        )
+        m = gdf.explore(m=m, **explore_kwds)
+    else:
+        m = gdf.explore(zoom_start=4, min_zoom=3, location=[-15.8, -47.9], **explore_kwds)
 
     MiniMap(position="bottomleft", zoom_level_offset=-5).add_to(m)
 
@@ -315,7 +334,13 @@ from matplotlib.colors import ListedColormap, rgb2hex
 from branca.element import MacroElement, Template
 from pathlib import Path
 
-def spatial_rede_monitoramento_interative(aqmData, columnRef, columnsTooltip, cmap):
+def spatial_rede_monitoramento_interative(aqmData, uf, columnRef, columnsTooltip, cmap):
+    # uf="BRASIL" (ou None/""/"BR"/"TODOS") => sem filtro, mapa do país inteiro
+    # (comportamento atual). Uma sigla real => filtra e desenha a fronteira do
+    # estado via geobr, igual ao Estadual.
+    if uf in (None, "", "BRASIL", "BR", "TODOS"):
+        uf = None
+
     # --- 1. Leitura e Caminhos ---
     # rootPath = Path(__file__).resolve().parents[1]
     # aqm_path = rootPath / "data" / "Monitoramento_QAr_BR.csv"
@@ -323,6 +348,8 @@ def spatial_rede_monitoramento_interative(aqmData, columnRef, columnsTooltip, cm
 
     # --- 2. Pré-processamento ---
     aqmData = aqmData.dropna(subset=["LATITUDE", "LONGITUDE"])
+    if uf is not None:
+        aqmData = aqmData[aqmData["UF"] == uf].copy()
     for col in ["LATITUDE", "LONGITUDE"]:
         aqmData[col] = pd.to_numeric(aqmData[col].astype(str).str.replace(',', '.'), errors="coerce")
     
@@ -351,13 +378,40 @@ def spatial_rede_monitoramento_interative(aqmData, columnRef, columnsTooltip, cm
 
     col_match = next((c for c in gdf.columns if c.lower() == columnRef.lower()), None)
 
-# --- 5. Mapa Base (CartoDB Positron) ---
+    # --- 4.5. Fronteira do estado (só quando uf é uma sigla real) ---
+    uf_boundary = None
+    if uf is not None:
+        import geobr
+        uf_boundary = geobr.read_state(code_state=uf, year=2020)
+        minx, miny, maxx, maxy = uf_boundary.total_bounds
+        center_lat = (miny + maxy) / 2
+        center_lon = (minx + maxx) / 2
+    else:
+        center_lat, center_lon = -15.8, -47.9
+
+# --- 5. Mapa-base CARTO Voyager com chave de API ---
     m = folium.Map(
-        location=[-15.8, -47.9], 
-        zoom_start=4, 
-        tiles="CartoDB positron",
-        attr='&copy; CartoDB'
+        location=[center_lat, center_lon],
+        zoom_start=6 if uf is not None else 4,
+        tiles=None
     )
+
+    voyager_tile = MacroElement()
+    voyager_tile._template = Template("""
+    {% macro header(this, kwargs) %}
+    {% endmacro %}
+    {% macro script(this, kwargs) %}
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_2ge2_1_675289d2b5268d90fee0fdab", {minZoom:2,maxZoom:20,maxNativeZoom:20,subdomains:"abcd",attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'}).addTo({{ this._parent.get_name() }});
+    {% endmacro %}
+    """)
+    m.add_child(voyager_tile)
+
+    if uf_boundary is not None:
+        folium.GeoJson(
+            uf_boundary,
+            style_function=lambda x: {"color": "black", "weight": 2, "fillOpacity": 0},
+            control=False,
+        ).add_to(m)
 
     # Mapeamento de cores
     unique_categories = sorted(gdf[col_match].unique())
@@ -384,12 +438,22 @@ def spatial_rede_monitoramento_interative(aqmData, columnRef, columnsTooltip, cm
         )
         group.add_to(m)
 
+    if uf_boundary is not None:
+        minx, miny, maxx, maxy = uf_boundary.total_bounds
+        m.fit_bounds([[miny, minx], [maxy, maxx]])
+
     # --- 7. Ajuste de Posição do Seletor ---
     # Posicionado no canto inferior direito (bottomright)
     folium.LayerControl(position='bottomright', collapsed=False).add_to(m)
 
-    # MiniMap (mantido no bottomleft para não conflitar)
-    MiniMap(position="bottomleft", zoom_level_offset=-5, tile_layer="CartoDB positron").add_to(m)
+    # MiniMap — usa o mesmo CARTO Voyager (com key) em vez de "CartoDB positron"
+    minimap_tile = folium.TileLayer(
+        tiles="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_2ge2_1_675289d2b5268d90fee0fdab",
+        attr='&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains="abcd",
+        name="MiniMap Voyager",
+    )
+    MiniMap(position="bottomleft", zoom_level_offset=-5, tile_layer=minimap_tile).add_to(m)
 
     # --- 8. CSS para Forçar o Estilo da Legenda ---
     style = Template("""

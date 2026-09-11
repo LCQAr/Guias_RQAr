@@ -121,12 +121,20 @@ def gerar_cache_populacao():
 # =============================
 # Função 2: LEVE (Lê o CSV para o Notebook)
 # =============================
-def carregar_tabela_pronta():
+def carregar_tabela_pronta(uf: str | None = None):
     """
     Lê o CSV gerado (hospedado remotamente), adiciona as bandeiras e retorna o DataFrame.
     Execução instantânea.
+
+    uf: sigla do estado (ex: "SC"), ou "BRASIL"/None para o país inteiro
+    (comportamento padrão, sem filtro).
     """
+    if uf in (None, "", "BRASIL", "BR", "TODOS"):
+        uf = None
+
     df = pd.read_csv(CSV_CACHE)
+    if uf is not None:
+        df = df[df["UF"] == uf]
 
     # Adicionar imagens das bandeiras (apenas na hora de exibir)
     def embed_flag(uf):
