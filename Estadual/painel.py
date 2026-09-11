@@ -63,7 +63,7 @@ class Painel(tk.Tk):
 
         self.botao_rodar = tk.Button(
             self, text="▶  Atualizar Livro Agora", font=("Segoe UI", 12, "bold"),
-            bg="#2C3E50", fg="white", activebackground="#34495E", activeforeground="white",
+            bg="#2C3E50", fg="black", activebackground="#34495E", activeforeground="white",
             padx=20, pady=10, command=self.rodar_build,
         )
         self.botao_rodar.pack(pady=(0, 12))
