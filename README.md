@@ -7,6 +7,13 @@ dos dados brutos que alimentam ambos os relatórios.
 
 ## Estrutura do repositório
 
+Guias_RQAr/
+├── Nacional/ # Geração do Relatório Nacional (RQAr)
+├── Estadual/ # Geração dos Relatórios Estaduais (REQAr)
+└── Tratamento_dados/ # Processamento dos dados brutos de origem
+├── funcoes_monitoramento/
+└── funcoes_rede/
+
 ### `Nacional/`
 
 Contém os notebooks, scripts e o sistema de autopreenchimento responsáveis
