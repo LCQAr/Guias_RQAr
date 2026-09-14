@@ -14,6 +14,7 @@ Guias_RQAr/
 ├── funcoes_monitoramento/
 └── funcoes_rede/
 
+
 ### `Nacional/`
 
 Contém os notebooks, scripts e o sistema de autopreenchimento responsáveis
